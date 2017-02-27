@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/CDCgov/concept-dictionary-manager/models"
 	"github.com/gin-gonic/gin"
-	"gitlab.mitre.org/CDC-SDP/concept-dictionary-manager/models"
 )
 
 func main() {
