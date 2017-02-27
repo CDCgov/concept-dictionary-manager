@@ -1,0 +1,245 @@
+ # http://editor.swagger.io/#/
+swagger: '2.0'
+
+info:
+  version: "0.1.0"
+  title: SDP Concept Service
+  description: Web API for the SDP Concept shared service
+  contact:
+    name: SDP Support
+    url: http://www.cdc.gov/sdp/
+    email: surveillanceplatform@cdc.gov
+    
+tags:
+  -
+    name: Code Systems
+    description:
+      Get the list of supported code systems and details of each supported code system.
+  -
+    name: Concepts
+    description: |
+      Search for concepts by code value or description, obtain sub-codes for hierarchical
+      code systems.
+
+paths:
+  /systems:
+    get:
+      tags:
+        - Code Systems
+      description: |
+        Get the list of supported code systems.
+      produces:
+        - application/json
+          
+      responses:
+        200:
+          description: Successful response
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/CodeSystem'
+
+  /concepts:
+    get:
+      tags:
+        - Concepts
+      description: |
+        Search for concepts.
+      produces:
+        - application/json
+          
+      parameters:
+        -
+          name: system
+          in: query
+          description: |
+            Specifies the code system to search. Value must match one of the
+            supported code system urls.
+          required: true
+          type: string
+        -
+          name: version
+          in: query
+          description: |
+            Specifies the version of the code system to search. Value
+            must match one of the supported code system version identifiers.
+          required: true
+          type: string
+        -
+          name: search
+          in: query
+          description:
+            Specifies the search text that will be used to match concepts against.
+          required: true
+          type: string
+      responses:
+        200:
+          description: Successful response
+          schema:
+            $ref: '#/definitions/ValueSet'
+
+  /subconcepts:
+    get:
+      tags:
+        - Concepts
+      description: |
+        Get a list of sub-concepts of the current concept.
+      produces:
+        - application/json
+          
+      parameters:
+        -
+          name: concept
+          in: query
+          description:
+            Specifies the concept whose sub-concepts are desired.
+          required: true
+          type: string
+        -
+          name: system
+          in: query
+          description: |
+            Specifies the code system that contains the concept. Value must match one
+            of the supported code system urls.
+          required: true
+          type: string
+        -
+          name: version
+          in: query
+          description: |
+            Specifies the version of the code system that contains the concept. Value
+            must match one of the supported code system version identifiers.
+          required: true
+          type: string
+      responses:
+        200:
+          description: Successful response
+          schema:
+            $ref: '#/definitions/ValueSet'
+
+
+definitions:
+
+  CodeSystem:
+    type: object
+    description: |
+      Code system metadata, this is a proper subset of the
+      [FHIR CodeSystem](http://hl7.org/fhir/2016Sep/codesystem.html) structure.
+    properties:
+      url:
+        type: string
+        title: Globally unique logical identifier for the code system
+      version: 
+        type: string
+        title: Version of the code system
+      name:
+        type: string
+        description: Informal name for this code system
+      status:
+        title: Status of the code system
+        type: string
+        enum:
+          - draft
+          - active
+          - retired
+      publisher:
+        type: string
+        title: Name of the publisher (organization or individual)
+      copyright:
+        type: string
+        title: Use and/or publishing restrictions
+      caseSensitive:
+        type: boolean
+        description: If code comparison is case sensitive
+      hierarchyMeaning:
+        title: |
+          type of hierarchical relationship in the code system, See
+          [FHIR hierarchy meaning](http://hl7.org/fhir/2016Sep/valueset-codesystem-hierarchy-meaning.html)
+        type: string
+        enum: 
+          - grouped-by
+          - subsumes
+          - part-of
+          - classified-with
+      compositional:
+        type: boolean
+        title: If code system defines a post-composition grammar
+      content:
+        title: |
+          Whether the component codes are includes (always not-present) for this service.
+          See [FHIR content mode](http://hl7.org/fhir/2016Sep/valueset-codesystem-content-mode.html)
+        type: string
+        enum:
+          - not-present
+          - examplar
+          - fragment
+          - complete
+      count:
+        type: integer
+        title: Total concepts in the code system
+
+  ValueSet:
+    type: object
+    description: |
+      A set of codes drawn from one or more code systems. This is a proper subset of the
+      [FHIR ValueSet](http://hl7.org/fhir/2016Sep/valueset.html) structure.
+    properties:
+      url:
+        type: string
+        title: Globally unique identifier for the value set
+      identifier:
+        type: array
+        title: Additional identifiers for the value set
+        items:
+          type: object
+          title: Additional identifier for the value set
+          properties:
+            system:
+              type: string
+            value:
+              type: string
+      version:
+        type: string
+        title: Logical identifier for this version of the value set
+      name:
+        type: string
+        title: informal name of the value set
+      status:
+        title: Status of the value set
+        type: string
+        enum:
+          - draft
+          - active
+          - retired
+      description:
+        type: string
+        title: Human readable description of the value set
+      expansion:
+        type: object
+        properties:
+          identifier:
+            type: string
+            title: Uniquely identifies this expansion
+          timestamp:
+            type: string
+            title: Time ValueSet expansion happened
+          contains:
+            type: array
+            title: Codes in the value set
+            items:
+              type: object
+              properties:
+                system:
+                  type: string
+                  title: System value for the code
+                version: 
+                  type: string
+                  title: Version of the system in which this code/display is defined
+                code:
+                  type: string
+                  title: Symbol in syntax defined by the system
+                display:
+                  type: string
+                  title:
+                    User display for the concept
+
