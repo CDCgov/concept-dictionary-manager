@@ -1,0 +1,1 @@
+Repository for the development of the elasticsearch based Concept Dictionary Manager to support the SDP Vocabulary Service at https://github.com/CDCgov/SDP-Vocabulary-Service
