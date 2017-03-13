@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/olivere/elastic"
@@ -20,7 +21,10 @@ func main() {
 	}
 
 	s.GET("/systems", func(c *gin.Context) {
-		systems := getSystems(ctx, client)
+		limitString := c.Query("limit")
+		pageString := c.Query("page")
+		from, size := resolvePagination(limitString, pageString)
+		systems := getSystems(ctx, from, size, client)
 		c.JSON(200, systems)
 	})
 
@@ -28,19 +32,22 @@ func main() {
 		systemString := c.Query("system")
 		versionString := c.Query("version")
 		searchString := c.Query("search")
-		valueSet := searchConcepts(ctx, systemString, versionString, searchString, client)
+		limitString := c.Query("limit")
+		pageString := c.Query("page")
+		from, size := resolvePagination(limitString, pageString)
+		valueSet := searchConcepts(ctx, systemString, versionString, searchString, from, size, client)
 		c.JSON(200, valueSet)
 	})
 	s.Run()
 }
 
-func getSystems(ctx context.Context, client *elastic.Client) []CodeSystem {
+func getSystems(ctx context.Context, from int, size int, client *elastic.Client) []CodeSystem {
 	searchResult, err := client.Search().
-		Index("code_systems").             // search in index "code_systems"
-		Query(elastic.NewMatchAllQuery()). // specify the query
-		From(0).Size(200).                 // get 200 documents
-		Pretty(true).                      // pretty print request and response JSON
-		Do(ctx)                            // execute
+		Index("code_systems").
+		Query(elastic.NewMatchAllQuery()).
+		From(from).Size(size).
+		Pretty(true).
+		Do(ctx)
 	if err != nil {
 		fmt.Printf("Error searching with elasticsearch client: %v", err)
 	}
@@ -67,15 +74,16 @@ func getSystems(ctx context.Context, client *elastic.Client) []CodeSystem {
 	return codeSystems
 }
 
-func searchConcepts(ctx context.Context, system string, version string, search string, client *elastic.Client) ValueSet {
+func searchConcepts(ctx context.Context, system string, version string, search string, from int, size int, client *elastic.Client) ValueSet {
 	codeQuery := elastic.NewQueryStringQuery("*" + search + "*")
 	codeQuery.Field("conceptCode")
 	codeQuery.Field("definitionText")
+
 	searchResult, err := client.Search().
 		Index("codes").
 		Type(system).
 		Query(codeQuery).
-		From(0).Size(1000).
+		From(from).Size(size).
 		Pretty(true).
 		Do(ctx)
 
@@ -104,7 +112,7 @@ func searchConcepts(ctx context.Context, system string, version string, search s
 			var code Code
 			code.Code = rawCode.ConceptCode
 			code.Display = rawCode.DefinitionText
-			code.System = system
+			code.System = rawCode.CodeSystemOid
 
 			vs.Expansion.Contains = append(vs.Expansion.Contains, code)
 
@@ -115,4 +123,33 @@ func searchConcepts(ctx context.Context, system string, version string, search s
 	}
 
 	return vs
+}
+
+func resolvePagination(limitString string, pageString string) (int, int) {
+	var limitNum int
+	var pageNum int
+	var err error
+
+	if limitString != "" {
+		limitNum, err = strconv.Atoi(limitString)
+		if err != nil {
+			fmt.Printf("Error parsing limit parameter: %v", err)
+		}
+	} else {
+		limitNum = 1000
+	}
+
+	if pageString != "" {
+		pageNum, err = strconv.Atoi(pageString)
+		if err != nil {
+			fmt.Printf("Error parsing page parameter: %v", err)
+		}
+	} else {
+		pageNum = 0
+	}
+
+	from := limitNum * pageNum
+	size := limitNum
+
+	return from, size
 }
