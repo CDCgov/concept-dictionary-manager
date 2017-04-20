@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 
@@ -14,8 +15,15 @@ import (
 func main() {
 	s := gin.Default()
 	var ctx = context.Background()
+	var client *elastic.Client
+	var err error
+	host := os.Getenv("ELASTIC_SEARCH_HOST")
 
-	client, err := elastic.NewClient()
+	if host != "" {
+		client, err = elastic.NewClient(elastic.SetURL("http://" + host))
+	} else {
+		client, err = elastic.NewClient()
+	}
 	if err != nil {
 		fmt.Printf("Error creating elasticsearch client: %v", err)
 	}
@@ -100,9 +108,6 @@ func searchConcepts(ctx context.Context, system string, version string, search s
 
 		// Iterate through results
 		for _, hit := range searchResult.Hits.Hits {
-			// hit.Index contains the name of the index
-
-			// Deserialize hit.Source into a Tweet (could also be just a map[string]interface{}).
 			var rawCode ESCode
 			err := json.Unmarshal(*hit.Source, &rawCode)
 			if err != nil {
