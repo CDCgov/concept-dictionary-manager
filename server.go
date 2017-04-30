@@ -20,7 +20,7 @@ func main() {
 	host := os.Getenv("ELASTIC_SEARCH_HOST")
 
 	if host != "" {
-		client, err = elastic.NewClient(elastic.SetURL("http://" + host))
+		client, err = elastic.NewClient(elastic.SetURL(host))
 	} else {
 		client, err = elastic.NewClient()
 	}
