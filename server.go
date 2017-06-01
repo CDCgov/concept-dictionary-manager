@@ -8,11 +8,13 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	elastic "gopkg.in/olivere/elastic.v3"
+	"github.com/olivere/elastic"
+	"golang.org/x/net/context"
 )
 
 func main() {
 	s := gin.Default()
+	var ctx = context.Background()
 	var client *elastic.Client
 	var err error
 	host := os.Getenv("ELASTIC_SEARCH_HOST")
@@ -30,7 +32,7 @@ func main() {
 		limitString := c.Query("limit")
 		pageString := c.Query("page")
 		from, size := resolvePagination(limitString, pageString)
-		systems := getSystems(from, size, client)
+		systems := getSystems(ctx, from, size, client)
 		c.JSON(200, systems)
 	})
 
@@ -41,22 +43,22 @@ func main() {
 		limitString := c.Query("limit")
 		pageString := c.Query("page")
 		from, size := resolvePagination(limitString, pageString)
-		valueSet := searchConcepts(systemString, versionString, searchString, from, size, client)
+		valueSet := searchConcepts(ctx, systemString, versionString, searchString, from, size, client)
 		c.JSON(200, valueSet)
 	})
 	s.Run()
 }
 
-func getSystems(from int, size int, client *elastic.Client) []CodeSystem {
+func getSystems(ctx context.Context, from int, size int, client *elastic.Client) []CodeSystem {
 
-	findOrCreateIndex(client, "code_systems")
+	findOrCreateIndex(ctx, client, "code_systems")
 
 	searchResult, err := client.Search().
 		Index("code_systems").
 		Query(elastic.NewMatchAllQuery()).
 		From(from).Size(size).
 		Pretty(true).
-		Do()
+		Do(ctx)
 	if err != nil {
 		fmt.Printf("Error searching with elasticsearch client: %v \n", err)
 	}
@@ -83,9 +85,9 @@ func getSystems(from int, size int, client *elastic.Client) []CodeSystem {
 	return codeSystems
 }
 
-func searchConcepts(system string, version string, search string, from int, size int, client *elastic.Client) ValueSet {
+func searchConcepts(ctx context.Context, system string, version string, search string, from int, size int, client *elastic.Client) ValueSet {
 
-	findOrCreateIndex(client, "codes")
+	findOrCreateIndex(ctx, client, "codes")
 
 	codeQuery := elastic.NewQueryStringQuery("*" + search + "*")
 	codeQuery.Field("conceptCode")
@@ -97,7 +99,7 @@ func searchConcepts(system string, version string, search string, from int, size
 		Query(codeQuery).
 		From(from).Size(size).
 		Pretty(true).
-		Do()
+		Do(ctx)
 
 	if err != nil {
 		fmt.Printf("Error searching with elasticsearch client: %v \n", err)
@@ -163,13 +165,13 @@ func resolvePagination(limitString string, pageString string) (int, int) {
 	return from, size
 }
 
-func findOrCreateIndex(client *elastic.Client, indexName string) {
-	exists, err := client.IndexExists(indexName).Do()
+func findOrCreateIndex(ctx context.Context, client *elastic.Client, indexName string) {
+	exists, err := client.IndexExists(indexName).Do(ctx)
 	if err != nil {
 		fmt.Printf("Error checking if %v index exists: %v", indexName, err)
 	}
 	if !exists {
-		createIndex, err := client.CreateIndex(indexName).Do()
+		createIndex, err := client.CreateIndex(indexName).Do(ctx)
 		if err != nil {
 			fmt.Printf("Error creating %v index: %v \n", indexName, err)
 		}
