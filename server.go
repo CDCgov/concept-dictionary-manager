@@ -8,13 +8,11 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/olivere/elastic"
-	"golang.org/x/net/context"
+	elastic "gopkg.in/olivere/elastic.v3"
 )
 
 func main() {
 	s := gin.Default()
-	var ctx = context.Background()
 	var client *elastic.Client
 	var err error
 	host := os.Getenv("ELASTIC_SEARCH_HOST")
@@ -25,14 +23,14 @@ func main() {
 		client, err = elastic.NewClient()
 	}
 	if err != nil {
-		fmt.Printf("Error creating elasticsearch client: %v", err)
+		fmt.Printf("Error creating elasticsearch client: %v \n", err)
 	}
 
 	s.GET("/systems", func(c *gin.Context) {
 		limitString := c.Query("limit")
 		pageString := c.Query("page")
 		from, size := resolvePagination(limitString, pageString)
-		systems := getSystems(ctx, from, size, client)
+		systems := getSystems(from, size, client)
 		c.JSON(200, systems)
 	})
 
@@ -43,21 +41,24 @@ func main() {
 		limitString := c.Query("limit")
 		pageString := c.Query("page")
 		from, size := resolvePagination(limitString, pageString)
-		valueSet := searchConcepts(ctx, systemString, versionString, searchString, from, size, client)
+		valueSet := searchConcepts(systemString, versionString, searchString, from, size, client)
 		c.JSON(200, valueSet)
 	})
 	s.Run()
 }
 
-func getSystems(ctx context.Context, from int, size int, client *elastic.Client) []CodeSystem {
+func getSystems(from int, size int, client *elastic.Client) []CodeSystem {
+
+	findOrCreateIndex(client, "code_systems")
+
 	searchResult, err := client.Search().
 		Index("code_systems").
 		Query(elastic.NewMatchAllQuery()).
 		From(from).Size(size).
 		Pretty(true).
-		Do(ctx)
+		Do()
 	if err != nil {
-		fmt.Printf("Error searching with elasticsearch client: %v", err)
+		fmt.Printf("Error searching with elasticsearch client: %v \n", err)
 	}
 
 	fmt.Printf("Query took %d milliseconds\n", searchResult.TookInMillis)
@@ -82,7 +83,10 @@ func getSystems(ctx context.Context, from int, size int, client *elastic.Client)
 	return codeSystems
 }
 
-func searchConcepts(ctx context.Context, system string, version string, search string, from int, size int, client *elastic.Client) ValueSet {
+func searchConcepts(system string, version string, search string, from int, size int, client *elastic.Client) ValueSet {
+
+	findOrCreateIndex(client, "codes")
+
 	codeQuery := elastic.NewQueryStringQuery("*" + search + "*")
 	codeQuery.Field("conceptCode")
 	codeQuery.Field("definitionText")
@@ -93,10 +97,10 @@ func searchConcepts(ctx context.Context, system string, version string, search s
 		Query(codeQuery).
 		From(from).Size(size).
 		Pretty(true).
-		Do(ctx)
+		Do()
 
 	if err != nil {
-		fmt.Printf("Error searching with elasticsearch client: %v", err)
+		fmt.Printf("Error searching with elasticsearch client: %v \n", err)
 	}
 
 	fmt.Printf("Query took %d milliseconds\n", searchResult.TookInMillis)
@@ -111,7 +115,7 @@ func searchConcepts(ctx context.Context, system string, version string, search s
 			var rawCode ESCode
 			err := json.Unmarshal(*hit.Source, &rawCode)
 			if err != nil {
-				fmt.Printf("Deserialization of result failed: %v", err)
+				fmt.Printf("Deserialization of result failed: %v \n", err)
 			}
 
 			var code Code
@@ -138,7 +142,7 @@ func resolvePagination(limitString string, pageString string) (int, int) {
 	if limitString != "" {
 		limitNum, err = strconv.Atoi(limitString)
 		if err != nil {
-			fmt.Printf("Error parsing limit parameter: %v", err)
+			fmt.Printf("Error parsing limit parameter: %v \n", err)
 		}
 	} else {
 		limitNum = 1000
@@ -147,7 +151,7 @@ func resolvePagination(limitString string, pageString string) (int, int) {
 	if pageString != "" {
 		pageNum, err = strconv.Atoi(pageString)
 		if err != nil {
-			fmt.Printf("Error parsing page parameter: %v", err)
+			fmt.Printf("Error parsing page parameter: %v \n", err)
 		}
 	} else {
 		pageNum = 0
@@ -157,4 +161,21 @@ func resolvePagination(limitString string, pageString string) (int, int) {
 	size := limitNum
 
 	return from, size
+}
+
+func findOrCreateIndex(client *elastic.Client, indexName string) {
+	exists, err := client.IndexExists(indexName).Do()
+	if err != nil {
+		fmt.Printf("Error checking if %v index exists: %v", indexName, err)
+	}
+	if !exists {
+		createIndex, err := client.CreateIndex(indexName).Do()
+		if err != nil {
+			fmt.Printf("Error creating %v index: %v \n", indexName, err)
+		}
+		if !createIndex.Acknowledged {
+			fmt.Printf("%v Index creation not acknowledged. \n", indexName)
+		}
+		fmt.Printf("Created %v index. \n", indexName)
+	}
 }
