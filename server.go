@@ -20,9 +20,9 @@ func main() {
 	host := os.Getenv("ELASTIC_SEARCH_HOST")
 
 	if host != "" {
-		client, err = elastic.NewClient(elastic.SetURL(host))
+		client, err = elastic.NewClient(elastic.SetURL(host), elastic.SetSniff(false))
 	} else {
-		client, err = elastic.NewClient()
+		client, err = elastic.NewClient(elastic.SetSniff(false))
 	}
 	if err != nil {
 		fmt.Printf("Error creating elasticsearch client: %v \n", err)
